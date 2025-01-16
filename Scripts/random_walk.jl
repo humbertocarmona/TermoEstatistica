@@ -4,38 +4,249 @@
 using Markdown
 using InteractiveUtils
 
+# This Pluto notebook uses @bind for interactivity. When running this notebook outside of Pluto, the following 'mock version' of @bind gives bound variables a default value (instead of an error).
+macro bind(def, element)
+    #! format: off
+    quote
+        local iv = try Base.loaded_modules[Base.PkgId(Base.UUID("6e696c72-6542-2067-7265-42206c756150"), "AbstractPlutoDingetjes")].Bonds.initial_value catch; b -> missing; end
+        local el = $(esc(element))
+        global $(esc(def)) = Core.applicable(Base.get, el) ? Base.get(el) : iv(el)
+        el
+    end
+    #! format: on
+end
+
 # ╔═╡ 682162da-fec4-4ebd-a05d-fe1e7407baaa
-using GLMakie
+begin 
+	using GLMakie
+	using Makie.Colors
+	using Random
+	using Printf
+	using PlutoUI
+	using PlutoTeachingTools
 
-# ╔═╡ 81af52f2-6201-4cd8-92f3-ac794f8fa82a
-using Makie.Colors
+	function W(N1, N, p)
+		pp = p^N1 * (1 - p)^(N - N1)
+		fac = factorial(big(N)) / (factorial(big(N1)) * factorial(big(N - N1)))
+    	return  fac*pp 
+	end
 
-# ╔═╡ 5f449778-c2cc-43f8-bc09-2fa4b73c9002
-using Random
+	function p_x(x_final, N, p)
+	    N1 = (x_final + N) ÷ 2 # Calculate N1 based on x_final and N
+	    if N1 < 0 || N1 > N || (x_final + N) % 2 != 0
+	        return 0.0 # Probability is 0 for invalid x_final
+	    end
+	    return W(N1, N, p)
+	end
 
-# ╔═╡ 01753670-32e2-4127-9ce9-278a2d323f06
-using Printf
-
-# ╔═╡ 117076dd-8964-4917-bc0e-0f5a409cfed2
-using PlutoUI
-
-# ╔═╡ f6fb510a-859e-406e-b173-5cf4f3b59afa
-using PlutoTeachingTools
+	ChooseDisplayMode()
+end
 
 # ╔═╡ bf3e359d-1292-4c92-91fe-16234fc83131
-md"# [Random Walk](https://github.com/JuliaPluto/PlutoTeachingTools.jl)"
+md"# [Random Walk](https://github.com/humbertocarmona/TermoEstatistica/blob/main/Scripts/random_walk.jl)"
 
-# ╔═╡ d4f6d08a-8f86-480d-9a72-f14531b6b003
-h = 1.0
+# ╔═╡ 51502854-ee7d-48c9-b0d2-0a675b7e3d82
+md"## Simulação"
 
-# ╔═╡ 16c14db0-b109-448a-bcc7-d4d941b3e7fb
-τ = 1.0
+# ╔═╡ f22a6538-9dc7-4e5c-8d35-3d0273e07a70
+md" Uma pessoa se desloca em uma reta dando 
+	passos para a direita com probabilidade $$p$$ e para esqueda com probabilidade $$q = 1-p$$"
 
 # ╔═╡ bc491776-8363-475a-a72e-34f438812518
-N = 500
+md"""
+Dado o número de passos $$N$$: $(@bind N NumberField(200:100:1000, default=200))
+"""
 
 # ╔═╡ e75cea5b-d746-4352-928b-e459fc970b0e
-p = 0.52
+md"""
+e a probabilidade para a direita $$p$$: $(@bind p NumberField(0:0.02:1, default=0.5))
+"""
+
+# ╔═╡ 544252d8-5bed-41ce-89b5-7a3b2d72b263
+md"Vamos armazenar a posição final após
+$$n_{rep}$$ = $(@bind n_rep NumberField(1000:5000:101000, default=1000)) repetições do caminho
+
+e plotar a distribuição $(@bind plot_teorico CheckBox(default=false))"
+
+# ╔═╡ fbbbfbfe-d2fa-46f6-8783-67c46f38380f
+begin
+	xfinal = zeros(Int, n_rep)
+	Random.seed!(1)
+	for cam in 1:n_rep
+		xc  = 0.0
+		for s = 1:N
+			r = rand() # numero aleatório de 0 a 1
+			if r < p
+				xc = xc + 1
+			else
+				xc = xc - 1
+			end
+		end
+		xfinal[cam] = xc
+	end
+
+	x_vals = minimum(xfinal):0.1:maximum(xfinal)  # Possible x_final values
+
+	# Compute probabilities
+	probabilities = [p_x(x, N, p) for x in x_vals]
+
+	fig1 = Figure()
+	ax1 = Axis(fig1[1,1])
+	hh = hist!(ax1,xfinal, bins=100, normalization=:probability, color=(:black, 0.5), label="simulação")
+	if plot_teorico
+		barplot!(ax1, x_vals, probabilities, color = (:red, 0.5), width=1, label="teórico")
+	end
+	axislegend(position=:lt)
+	# ylims!(ax1,-0.005,0.1)
+	
+	xlims!(ax1,minimum(xfinal),maximum(xfinal))
+	fig1
+end
+
+# ╔═╡ fcf11110-2a63-47c5-985d-f6629b5aeb4e
+md"""
+## Resultado analítico
+A probabilidade de uma sequência de $$N_1$$ passos para direita e  $$N_2$$ passos para direita é
+
+$$(p\cdot p\cdot p\dots)(q\cdot q\cdot q\dots) = p^{N_1}q^{N_2}$$
+
+**para qualquer sequência de passos para direita e esquerda**.
+
+De quantas formas podemos ordenar?
+
+$$\frac{N}{N_1! N_2!}$$
+
+onde $$N = N_1+N_2$$.
+
+Assim,
+
+$$W(N_1|N,p) = \frac{N}{N_1! (N-N_1)!}  p^{N_1}(1-p)^{N-N_1}$$
+
+é a probabilidade de $$N_1$$ passos para direita dados $$N$$ e $$p$$.
+
+A posição final 
+
+$$m = (N_1 - N_2) = (2N_1 - N))$$
+
+logo 
+
+$$N_1 = \frac{N+m}{2}$$
+
+$$N_2 = N - N_1 = \frac{N-m}{2}$$
+
+
+A posição final $$m$$ é única para um dado $$N_1$$, então a probabilidade de $$m$$ é a mesma que a probabilidade de $$N_1$$. Assim:
+
+
+$$P_N(m) = W(N_1 | N, p)$$
+
+Substituindo $$N_1 = \frac{m+N}{2}$$ na fórmula de $$W(N_1 | N, p)$$, temos:
+
+
+$$P_N(m) = \frac{N!}{\left(\frac{N+m}{2})\right)! \left(\frac{N-m}{2}\right)!} p^{\frac{N+m}{2}} (1 - p)^{\frac{N-m}{2}}.$$
+
+Essa fórmula representa a probabilidade de atingir uma posição final $$m$$ considerando os parâmetros $$N$$ e $$p$$.
+"""
+
+# ╔═╡ ef1df8d7-588f-4759-927e-21d8e1a6a394
+md"""
+## Difusão
+
+**Mostre que**
+
+$$P_{N+1}(m) =  p P_{N}(m-1) + (1- p) P_{N}(m+1)$$ 
+
+essa é uma *Cadeia de Markov*.
+
+Depois seque que, no caso em que $$p=1/2$$
+
+$$P_{N+1}(m) - P_{N}(m) = \frac{P_{N}(m-1) + P_{N}(m+1) - 2 P_{N}(m) }{2}$$
+
+agora tomando o tempo como $$t=N\tau$$, e a posição $$x=ml$$
+
+$$P_{t+\tau}(x) - P_{t}(x) = \frac{P_{t}(x-l) + P_{t}(x+l) - 2 P_{t}(x) }{2}$$
+
+$$\frac{P_{t+\tau}(x) - P_{t}(x)}{\tau} = \left(\frac{l}{2\tau}\right)\left(\frac{P_{t}(x-l) + P_{t}(x+l) - 2 P_{t}(x) }{l}\right)$$
+
+no limite que $$\tau\rightarrow0$$, $$l\rightarrow0$$, $$\frac{l}{2\tau}\rightarrow D$$
+
+$$\frac{\partial P}{\partial t}=D \frac{\partial^2 P}{\partial^2 x}$$
+
+que é a equação de difusão
+"""
+
+# ╔═╡ 2f432285-7f4b-40f5-a104-ca50344e355d
+md"""
+## Médias
+
+** Mostre que
+
+- $$\left< N_1 \right>=pN$$ 
+- $$\left< N_2 \right>=qN$$ 
+- $$\left< N_1^2 \right>=pqN$$ 
+- $$\sigma_1= \sqrt{pq} N$$ 
+
+
+"""
+
+# ╔═╡ e883e716-f4f9-417a-a880-e2ddd7e462af
+	md"""
+	## Limite Gaussiano
+	
+	Queremos olhar  
+	
+	$$\lim_{N\rightarrow \infty} P_N(m)$$
+	
+	Note que 
+	
+	$$P_N(m=N) = p^{N}.$$
+
+	$$P_N(m=-N) = (1-p)^{N}.$$
+
+	ambas essas quantidades vão a **0** quando $$N\rightarrow\infty$$. Queremos encontrar o máximo...
+
+	
+	Para isso, 
+	
+	$$\frac{d \ln P_N(m)}{d m} = 0$$
+	
+	$$\ln P_N(m) = \ln N! - \ln \left(\frac{N+m}{2}\right)!  - \ln \left(\frac{N-m}{2}\right)! + $$
+	$$+ \left(\frac{N+m}{2}\right) \ln p + \left(\frac{N-m}{2}\right) (1 - p).$$
+
+	agora use
+
+	$$\ln N! \approx N\ln N - N$$
+
+
+	$$\ln P_N(m) = N \ln N - N$$ 
+	
+	$$- \left(\frac{N+m}{2}\right) \ln \left(\frac{N+m}{2}\right)+ \left(\frac{N+m}{2}\right)$$
+	
+	$$- \left(\frac{N-m}{2}\right) \ln \left(\frac{N-m}{2}\right)+ \left(\frac{N-m}{2}\right) +$$
+	
+	$$+ \left(\frac{N+m}{2}\right) \ln p + \left(\frac{N-m}{2}\right) (1 - p).$$
+
+
+	Agora $$\frac{d \ln P_N(m)}{d m} = 0$$ implica
+
+	$$\ln \left(\frac{N-m}{2}\right) - \ln \left(\frac{N+m}{2}\right) + \ln p + \ln (1-p) = 0$$
+	
+	$$\frac{N+m}{2} = pN = \left<N_1\right> \Rightarrow m= 2\left<N_1\right>-N$$
+	$(aside(tip(md"
+	$$P_N(m) = \frac{N!}{\left(\frac{N+m}{2})\right)! \left(\frac{N-m}{2}\right)!} p^{\frac{N+m}{2}} (1 - p)^{\frac{N-m}{2}}.$$"); v_offset=100))
+
+	$(set_aside_width(400))
+	"""
+
+
+# ╔═╡ 333234da-112e-428d-ae19-bb0a1ce4c7bc
+	TableOfContents()   # from PlutoUI
+
+# ╔═╡ 59d161f2-f6af-4003-814c-d388421e31fb
+begin
+	h = 1.0 # step size;
+	τ = 1.0 # timestep size;
+end;
 
 # ╔═╡ d44d6c40-3e1e-4d7a-9c80-9fc544457002
 begin
@@ -66,30 +277,6 @@ begin
 		
 	end
 end
-
-# ╔═╡ fbbbfbfe-d2fa-46f6-8783-67c46f38380f
-begin
-	n_rep = 100000
-	xfinal = zeros(Int, n_rep)
-	for cam in 1:n_rep
-		xc  = 0.0
-		for s = 1:N
-			r = rand() # numero aleatório de 0 a 1
-			if r < p
-				xc = xc + 1
-			else
-				xc = xc - 1
-			end
-		end
-		xfinal[cam] = xc
-	end
-end
-
-# ╔═╡ 5aa1a209-bd10-4d00-b8a5-1656bc14318e
-hist(xfinal, bins=550)
-
-# ╔═╡ 106d4e5e-fc7a-45f6-adbe-7e1831ade928
-TableOfContents()   # from PlutoUI
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
@@ -1809,20 +1996,20 @@ version = "1.4.1+1"
 """
 
 # ╔═╡ Cell order:
-# ╠═bf3e359d-1292-4c92-91fe-16234fc83131
-# ╠═d4f6d08a-8f86-480d-9a72-f14531b6b003
-# ╠═16c14db0-b109-448a-bcc7-d4d941b3e7fb
-# ╠═d44d6c40-3e1e-4d7a-9c80-9fc544457002
-# ╠═bc491776-8363-475a-a72e-34f438812518
-# ╠═e75cea5b-d746-4352-928b-e459fc970b0e
+# ╟─bf3e359d-1292-4c92-91fe-16234fc83131
+# ╟─51502854-ee7d-48c9-b0d2-0a675b7e3d82
+# ╟─f22a6538-9dc7-4e5c-8d35-3d0273e07a70
+# ╟─d44d6c40-3e1e-4d7a-9c80-9fc544457002
+# ╟─bc491776-8363-475a-a72e-34f438812518
+# ╟─e75cea5b-d746-4352-928b-e459fc970b0e
+# ╟─544252d8-5bed-41ce-89b5-7a3b2d72b263
 # ╠═fbbbfbfe-d2fa-46f6-8783-67c46f38380f
-# ╠═5aa1a209-bd10-4d00-b8a5-1656bc14318e
-# ╠═682162da-fec4-4ebd-a05d-fe1e7407baaa
-# ╠═81af52f2-6201-4cd8-92f3-ac794f8fa82a
-# ╠═5f449778-c2cc-43f8-bc09-2fa4b73c9002
-# ╠═01753670-32e2-4127-9ce9-278a2d323f06
-# ╠═117076dd-8964-4917-bc0e-0f5a409cfed2
-# ╠═f6fb510a-859e-406e-b173-5cf4f3b59afa
-# ╠═106d4e5e-fc7a-45f6-adbe-7e1831ade928
+# ╠═fcf11110-2a63-47c5-985d-f6629b5aeb4e
+# ╟─ef1df8d7-588f-4759-927e-21d8e1a6a394
+# ╟─2f432285-7f4b-40f5-a104-ca50344e355d
+# ╠═e883e716-f4f9-417a-a880-e2ddd7e462af
+# ╟─682162da-fec4-4ebd-a05d-fe1e7407baaa
+# ╠═333234da-112e-428d-ae19-bb0a1ce4c7bc
+# ╟─59d161f2-f6af-4003-814c-d388421e31fb
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002
